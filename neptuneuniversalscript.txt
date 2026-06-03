@@ -863,6 +863,110 @@ CreateButton(TpSquare, "Teleport to Player", 6, function()
     end
 end)
 
+------------------ ABSOLUTE MATRIX CHECKPOINT SYSTEM ------------------
+local MatrixSquare = CreateSectionSquare(ProtectPage, "Absolute Matrix Checkpoint System", 3)
+
+local CheckpointsTable = {}
+local AutoTpActive = false
+local AutoTpIndex = 1
+local AutoTpDelay = 1.0
+
+-- Matrix Status Monitor
+local MatrixStatus = Instance.new("TextLabel")
+MatrixStatus.Size = UDim2.new(1, 0, 0, 16)
+MatrixStatus.BackgroundTransparency = 1
+MatrixStatus.Font = Enum.Font.GothamSemibold
+MatrixStatus.Text = "Saved Checkpoints: 0 | Last: None"
+MatrixStatus.TextColor3 = Color3.fromRGB(200, 220, 240)
+MatrixStatus.TextSize = 11
+MatrixStatus.TextXAlignment = Enum.TextXAlignment.Center
+MatrixStatus.LayoutOrder = 1
+MatrixStatus.Parent = MatrixSquare
+table.insert(ObjectRegistry.TextAccents, MatrixStatus) 
+
+local function UpdateMatrixStatus()
+    if #CheckpointsTable > 0 then
+        MatrixStatus.Text = string.format("Saved: %d | Last: Pos %d", #CheckpointsTable, #CheckpointsTable)
+    else
+        MatrixStatus.Text = "Saved Checkpoints: 0 | Last: None"
+    end
+end
+
+local function GetSafeRootPart()
+    local char = Player.Character or workspace:FindFirstChild(Player.Name)
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+-- Core Interaction Channels
+CreateButton(MatrixSquare, "➕ Add Current Position", 2, function()
+    local root = GetSafeRootPart()
+    if root then
+        table.insert(CheckpointsTable, root.CFrame)
+        UpdateMatrixStatus()
+    end
+end)
+
+CreateButton(MatrixSquare, "❌ Delete Last Position", 3, function()
+    if #CheckpointsTable > 0 then
+        table.remove(CheckpointsTable, #CheckpointsTable)
+        UpdateMatrixStatus()
+    end
+end)
+
+local MatrixInputBox = CreateTextBox(MatrixSquare, "Target Checkpoint # (e.g., 1)", 4)
+
+CreateButton(MatrixSquare, "⚡ Teleport To Input Target", 5, function()
+    local target = tonumber(MatrixInputBox.Text)
+    if target and target > 0 and target <= #CheckpointsTable then
+        local root = GetSafeRootPart()
+        if root then root.CFrame = CheckpointsTable[target] end
+    else
+        MatrixInputBox.Text = ""
+        MatrixInputBox.PlaceholderText = "Invalid ID!"
+        task.delay(1.5, function() MatrixInputBox.PlaceholderText = "Target Checkpoint # (e.g., 1)" end)
+    end
+end)
+
+CreateDarkSlider(MatrixSquare, "Teleport Loop Delay", 0.1, 20, AutoTpDelay, 6, true, function(val)
+    AutoTpDelay = val
+end)
+
+local AutoTpBtnRef
+AutoTpBtnRef = CreateButton(MatrixSquare, "", 7, function(btn)
+    if #CheckpointsTable == 0 then return end
+    
+    AutoTpActive = not AutoTpActive
+    UpdateToggleTextFormatting(btn, "🚀 Auto Teleport Loop", AutoTpActive)
+    
+    if AutoTpActive then
+        task.spawn(function()
+            local timeElapsed = AutoTpDelay -- Forces an instant teleport on the very first tick
+            
+            while AutoTpActive and #CheckpointsTable > 0 do
+                if timeElapsed >= AutoTpDelay then
+                    local root = GetSafeRootPart()
+                    if root then
+                        if AutoTpIndex > #CheckpointsTable then AutoTpIndex = 1 end
+                        root.CFrame = CheckpointsTable[AutoTpIndex]
+                        MatrixStatus.Text = "✨ Looping: Pos " .. AutoTpIndex .. " / " .. #CheckpointsTable
+                        AutoTpIndex = AutoTpIndex + 1
+                    end
+                    timeElapsed = 0 -- Reset the clock after teleporting
+                end
+                
+                -- Micro-wait dynamically checks the slider value without locking the thread
+                timeElapsed = timeElapsed + task.wait(0.03)
+            end
+            
+            -- Failsafe reset if table empties during loop or toggle is disabled
+            AutoTpActive = false
+            UpdateToggleTextFormatting(AutoTpBtnRef, "🚀 Auto Teleport Loop", false)
+            UpdateMatrixStatus()
+        end)
+    end
+end)
+UpdateToggleTextFormatting(AutoTpBtnRef, "🚀 Auto Teleport Loop", AutoTpActive)
+
 
 ------------------ TAB 3: VISUALS / HIGHLIGHT ESP ------------------
 local VisualSquare = CreateSectionSquare(VisualsPage, "ESP Visual Engine", 1)
@@ -1565,6 +1669,66 @@ end
 CreateInfoCard(InfoSquare, "Script Creator", "Neptune", 1)
 CreateInfoCard(InfoSquare, "Creator Discord Link", "https://discord.com/users/610202f17b", 2)
 CreateInfoCard(InfoSquare, "Last Script Update", "June 3, 2026", 3)
+
+-- LIVE SERVER STATS BOX
+local LiveStatCard = Instance.new("Frame")
+LiveStatCard.Size = UDim2.new(1, 0, 0, 76) -- Taller to fit 4 lines of text cleanly
+LiveStatCard.BackgroundColor3 = Color3.fromRGB(12, 34, 58)
+LiveStatCard.LayoutOrder = 4
+LiveStatCard.Parent = InfoSquare
+Instance.new("UICorner", LiveStatCard).CornerRadius = UDim.new(0, 6)
+
+local LiveStatTitle = Instance.new("TextLabel")
+LiveStatTitle.Position = UDim2.new(0, 10, 0, 6)
+LiveStatTitle.Size = UDim2.new(1, -20, 0, 12)
+LiveStatTitle.BackgroundTransparency = 1
+LiveStatTitle.Font = Enum.Font.GothamBold
+LiveStatTitle.Text = "LIVE SESSION STATS"
+LiveStatTitle.TextXAlignment = Enum.TextXAlignment.Left
+LiveStatTitle.TextColor3 = Color3.fromRGB(0, 140, 255)
+LiveStatTitle.TextSize = 9
+LiveStatTitle.Parent = LiveStatCard
+
+local LiveStatVal = Instance.new("TextLabel")
+LiveStatVal.Position = UDim2.new(0, 10, 0, 22)
+LiveStatVal.Size = UDim2.new(1, -20, 0, 50)
+LiveStatVal.BackgroundTransparency = 1
+LiveStatVal.Font = Enum.Font.GothamSemibold
+LiveStatVal.Text = "Loading data..."
+LiveStatVal.TextXAlignment = Enum.TextXAlignment.Left
+LiveStatVal.TextYAlignment = Enum.TextYAlignment.Top
+LiveStatVal.TextColor3 = Color3.fromRGB(255, 255, 255)
+LiveStatVal.TextSize = 11
+LiveStatVal.Parent = LiveStatCard
+
+local ScriptStartTime = os.time()
+task.spawn(function()
+    while task.wait(1) do
+        if not LiveStatVal.Parent then break end -- Kill loop if UI is destroyed
+        
+        local uptime = os.time() - ScriptStartTime
+        local mins = math.floor(uptime / 60)
+        local secs = uptime % 60
+        local hrs = math.floor(mins / 60)
+        mins = mins % 60
+        
+        local timeString = ""
+        if hrs > 0 then
+            timeString = string.format("%02d:%02d:%02d", hrs, mins, secs)
+        else
+            timeString = string.format("%02d:%02d", mins, secs)
+        end
+        
+        LiveStatVal.Text = string.format(
+            "Username: %s\nPlace ID: %d\nOnline Players: %d / %d\nScript Uptime: %s",
+            Player.Name,
+            game.PlaceId,
+            #Players:GetPlayers(),
+            Players.MaxPlayers,
+            timeString
+        )
+    end
+end)
 
 
 ------------------ CORE RUNNING MECHANICS ------------------
